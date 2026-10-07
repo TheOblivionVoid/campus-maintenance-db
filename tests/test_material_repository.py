@@ -54,12 +54,12 @@ def test_repo_decrement_stock(repo, db_conn):
     assert mat_after["stock_qty"] == initial_stock - 5
 
 
-def test_repo_create_and_get_material_usage(repo, db_conn):
+def test_repo_create_and_get_material_usage(repo, db_conn, isolated_work_log):
     """Test inserting and retrieving material usage record with rich joined context."""
     now = datetime(2026, 10, 1, 11, 0, 0)
     created = repo.create_work_log_material(
         {
-            "work_log_id": 1,
+            "work_log_id": isolated_work_log,
             "material_id": 1,
             "quantity_used": Decimal("4.00"),
             "issued_date": now,
@@ -67,14 +67,14 @@ def test_repo_create_and_get_material_usage(repo, db_conn):
         },
         conn=db_conn,
     )
-    assert created["work_log_id"] == 1
+    assert created["work_log_id"] == isolated_work_log
     assert created["material_id"] == 1
     assert created["quantity_used"] == Decimal("4.00")
     assert created["issued_by"] == 3
 
-    usage = repo.get_material_usage(1, 1, conn=db_conn)
+    usage = repo.get_material_usage(isolated_work_log, 1, conn=db_conn)
     assert usage is not None
-    assert usage["work_log_id"] == 1
+    assert usage["work_log_id"] == isolated_work_log
     assert usage["material_id"] == 1
     assert usage["material_name"] == "Philips 20W T8 LED Tube Light"
     assert usage["material_unit"] == "Piece"
@@ -84,6 +84,23 @@ def test_repo_create_and_get_material_usage(repo, db_conn):
     assert usage["assignment_id"] == 1
     assert usage["request_id"] == 1
     assert usage["request_number"] == "REQ-20260920-0001"
+
+
+def test_repo_duplicate_material_raises_unique_violation(repo, db_conn):
+    """Test that attempting to insert duplicate (work_log_id, material_id) raises UniqueViolation."""
+    import psycopg.errors
+    # Seed data already contains (work_log_id=1, material_id=1)
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        repo.create_work_log_material(
+            {
+                "work_log_id": 1,
+                "material_id": 1,
+                "quantity_used": Decimal("2.00"),
+                "issued_date": datetime(2026, 10, 1, 12, 0, 0),
+                "issued_by": 1,
+            },
+            conn=db_conn,
+        )
 
 
 def test_repo_work_log_material_exists(repo, db_conn):

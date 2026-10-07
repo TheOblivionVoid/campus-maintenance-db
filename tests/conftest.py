@@ -65,3 +65,21 @@ def clean_test_requests():
             cur.execute("DELETE FROM material WHERE material_id > 10;")
             cur.execute("UPDATE request SET status_id = 1, closed_date = NULL, resolution_description = NULL, closed_by = NULL WHERE request_id = 9 AND status_id != 1;")
         conn.commit()
+
+
+@pytest.fixture
+def isolated_work_log(db_conn):
+    """
+    Provide an isolated work log on Assignment 1 (Request 1)
+    within the isolated db_conn transaction so tests can insert/verify
+    materials without colliding with existing seed records.
+    """
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO work_log (assignment_id, work_date, work_description, hours_spent)
+            VALUES (1, '2026-10-01 10:00:00', 'Isolated test work log for material operations', 1.00)
+            RETURNING work_log_id;
+            """
+        )
+        return cur.fetchone()["work_log_id"]

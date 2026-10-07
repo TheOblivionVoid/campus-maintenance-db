@@ -187,8 +187,18 @@ def test_api_material_service_boundary_insufficient_stock(client):
     Verify Phase 4 API does NOT bypass Phase 3 MaterialService:
     Requisitioning more stock than available must trigger InsufficientStockError (HTTP 400).
     """
+    # Create an isolated work log so it reaches the stock validation branch without duplicate collision
+    wl_res = client.post("/api/work-logs", json={
+        "assignment_id": 1,
+        "work_description": "Isolated work log for boundary stock test",
+        "hours_spent": 1.0,
+        "log_date": "2026-10-01T10:00:00",
+    })
+    assert wl_res.status_code == 201
+    isolated_wl_id = wl_res.json()["work_log_id"]
+
     payload = {
-        "work_log_id": 1,
+        "work_log_id": isolated_wl_id,
         "material_id": 1,
         "quantity_used": 999999,  # Far exceeds warehouse stock
         "issued_by": 1,
@@ -196,6 +206,22 @@ def test_api_material_service_boundary_insufficient_stock(client):
     res = client.post("/api/materials/usage", json=payload)
     assert res.status_code == 400
     assert "stock" in res.json()["message"].lower()
+
+
+def test_api_material_service_boundary_duplicate_material(client):
+    """
+    Verify Phase 4 API rejects duplicate material usage on the same work log (HTTP 400).
+    """
+    # Seed data already contains (work_log_id=1, material_id=1)
+    payload = {
+        "work_log_id": 1,
+        "material_id": 1,
+        "quantity_used": 1.0,
+        "issued_by": 1,
+    }
+    res = client.post("/api/materials/usage", json=payload)
+    assert res.status_code == 400
+    assert "already been recorded" in res.json()["message"].lower()
 
 
 def test_api_status_progression_boundary_invalid_transition(client):

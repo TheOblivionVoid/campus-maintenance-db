@@ -52,7 +52,7 @@ def cost_service():
 # MATERIAL USAGE — POSITIVE TESTS
 # =============================================================================
 
-def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_service, db_conn):
+def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_service, db_conn, isolated_work_log):
     """
     Positive 1 to 5:
     1. Record valid material usage against an existing work log
@@ -62,7 +62,7 @@ def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_ser
     5. Verify COST amount equals QuantityUsed * UnitCost
     """
     # Material 1: Philips LED Tube (unit_cost=180.00, initial stock=150)
-    # WorkLog 1 is on Assignment 1, Request 1
+    # isolated_work_log is on Assignment 1, Request 1
     mat_before = service.get_material_by_id(1, conn=db_conn)
     initial_stock = mat_before["stock_qty"]
     unit_cost = Decimal(str(mat_before["unit_cost"]))
@@ -70,7 +70,7 @@ def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_ser
     expected_cost = (qty * unit_cost).quantize(Decimal("0.01"))  # 3 * 180 = 540.00
 
     usage = service.record_material_usage(
-        work_log_id=1,
+        work_log_id=isolated_work_log,
         material_id=1,
         quantity_used=qty,
         issued_by=3,  # Gurpreet Singh
@@ -80,7 +80,7 @@ def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_ser
 
     # 1. Verify result structure
     assert usage is not None
-    assert usage["work_log_id"] == 1
+    assert usage["work_log_id"] == isolated_work_log
     assert usage["material_id"] == 1
     assert usage["quantity_used"] == qty
     assert usage["issued_by"] == 3
@@ -88,7 +88,7 @@ def test_pos_1_to_5_record_valid_material_usage_and_verify_all(service, cost_ser
     assert usage["calculated_usage_cost"] == expected_cost
 
     # 2. Verify WORK_LOG_MATERIAL row in database
-    retrieved_usage = service.get_material_usage(1, 1, conn=db_conn)
+    retrieved_usage = service.get_material_usage(isolated_work_log, 1, conn=db_conn)
     assert retrieved_usage["quantity_used"] == qty
     assert retrieved_usage["material_name"] == "Philips 20W T8 LED Tube Light"
     assert retrieved_usage["issued_by_name"] == "Gurpreet Singh"
